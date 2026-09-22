@@ -276,12 +276,12 @@ export const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(
               </div>
             ) : null}
 
-            {/* Song Name & Mute State Label */}
+            {/* Mute State Label */}
             <span className="text-[11px] sm:text-xs font-serif tracking-wider whitespace-nowrap leading-none transition-colors">
               {isMuted ? (
-                <span className="text-[#C9A24B]/80 group-hover:text-[#F8CC4F]">Muted</span>
+                <span className="text-[#C9A24B]/80 group-hover:text-[#F8CC4F]">Tap to play</span>
               ) : (
-                <span className="text-[#FDFBF6] group-hover:text-[#F8CC4F]">{songName}</span>
+                <span className="text-[#FDFBF6] group-hover:text-[#F8CC4F]">Tap to mute</span>
               )}
             </span>
           </button>

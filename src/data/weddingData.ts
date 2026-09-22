@@ -21,7 +21,6 @@ export const WEDDING_DETAILS = {
   brideName: "Ravneet Kaur",
   brideShortName: "Ravneet",
   weddingDate: "On Saturday, 31ˢᵗ October, 2026",
-  videoUrl: "https://d8j0ntlcm91z4.cloudfront.net/user_39pXjLcmPadwlBMctX1yshQ5O5N/hf_20260908_152425_90839a05-e7f6-45a0-83df-cf2d1aec7da8.mp4",
   backgroundMusic: {
     songName: "Tasveer",
     artist: "Ali Brothers",

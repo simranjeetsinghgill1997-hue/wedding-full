@@ -1,7 +1,7 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { WEDDING_DETAILS } from '../data/weddingData';
 import { ChevronDown } from 'lucide-react';
-import { HeroBackgroundAnimation } from './HeroBackgroundAnimation';
+import heroVideo from '../assets/images/hf_20260908_152425_90839a05-e7f6-45a0-83df-cf2d1aec7da8.mp4';
 
 interface HeroSectionProps {
   onScrollNext?: () => void;
@@ -9,43 +9,32 @@ interface HeroSectionProps {
 
 export const HeroSection: React.FC<HeroSectionProps> = ({ onScrollNext }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [videoLoaded, setVideoLoaded] = useState(false);
 
   useEffect(() => {
-    // Ensure video is strictly muted and auto-plays on mobile touch browsers
     if (videoRef.current) {
       videoRef.current.muted = true;
       videoRef.current.defaultMuted = true;
-      videoRef.current.play().then(() => {
-        setVideoLoaded(true);
-      }).catch(() => {
-        // Autoplay policy or 403 error fallback
+      videoRef.current.play().catch(() => {
+        // Autoplay policy fallback
       });
     }
   }, []);
 
   return (
     <section className="snap-panel relative w-screen h-[100svh] overflow-hidden bg-[#0B1A3A] flex flex-col justify-between">
-      {/* High-fidelity Canvas Starry & Golden Bokeh Animation */}
-      <HeroBackgroundAnimation />
-
-      {/* Video Layer (Smoothly fades in if video successfully streams) */}
-      <div
-        className={`absolute inset-0 z-0 overflow-hidden pointer-events-none transition-opacity duration-1000 ${
-          videoLoaded ? 'opacity-100' : 'opacity-0'
-        }`}
-      >
+      {/* Background Video (Looping, muted) */}
+      <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none select-none">
         <video
           ref={videoRef}
-          src={WEDDING_DETAILS.videoUrl}
+          src={heroVideo}
           autoPlay
           loop
           muted
           playsInline
-          onCanPlay={() => setVideoLoaded(true)}
-          onError={() => setVideoLoaded(false)}
           className="w-full h-full object-cover object-center"
         />
+        {/* Subtle royal darkening overlay for optimal typography legibility */}
+        <div className="absolute inset-0 bg-gradient-to-b from-[#0B1A3A]/45 via-transparent to-[#0B1A3A]/60 pointer-events-none" />
       </div>
 
       {/* Top Section — Names Lockup */}
