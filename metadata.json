@@ -1,0 +1,6 @@
+{
+  "name": "Simranjeet & Ravneet Wedding Invite",
+  "description": "A luxury mobile wedding invitation website for Simranjeet Singh Gill & Ravneet Kaur.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

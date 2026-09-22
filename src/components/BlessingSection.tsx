@@ -1,0 +1,575 @@
+import React, { useRef, useState, useEffect, useCallback } from 'react';
+import { ChevronDown, MapPin } from 'lucide-react';
+import { KhandaEmblemSvg } from './Ornaments';
+
+interface BlessingSectionProps {
+  onScrollNext?: () => void;
+  onScrollPrev?: () => void;
+}
+
+const LOCAL_CARD_PATH = '/assets/invitation_card_higgsfield.webp';
+const HIGGSFIELD_CDN_URL =
+  'https://d8j0ntlcm91z4.cloudfront.net/user_39pXjLcmPadwlBMctX1yshQ5O5N/hf_20260908_232837_7f8e44d0-aa2f-4a46-a247-12b004b2aa05_min.webp';
+
+// Authentic Ornate Gold Floral Divider
+const OrnateCardDivider: React.FC<{ className?: string }> = ({ className = '' }) => (
+  <div className={`flex items-center justify-center gap-1.5 my-2 ${className}`}>
+    <div className="h-[1px] w-10 sm:w-14 bg-gradient-to-r from-transparent via-[#C9A24B] to-[#936B1B]" />
+    <div className="flex items-center gap-0.5 text-[#936B1B]">
+      <span className="text-[8px] text-[#C9A24B]">✦</span>
+      <div className="w-1.5 h-1.5 rounded-full bg-[#7A1F2B] border border-[#C9A24B]" />
+      <span className="text-[8px] text-[#C9A24B]">✦</span>
+    </div>
+    <div className="h-[1px] w-10 sm:w-14 bg-gradient-to-l from-transparent via-[#C9A24B] to-[#936B1B]" />
+  </div>
+);
+
+export const BlessingSection: React.FC<BlessingSectionProps> = ({
+  onScrollNext,
+  onScrollPrev,
+}) => {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [activeSubsection, setActiveSubsection] = useState<number>(0);
+  const isNavigatingRef = useRef(false);
+  const touchStartYRef = useRef<number | null>(null);
+
+  // Now 5 subsections:
+  // 0: Gurbani Quote
+  // 1: Marriage Ceremony & RSVP
+  // 2: Sagan and Ring Ceremony
+  // 3: Mehendi & Jaggo (Compiled into one page)
+  // 4: Wedding Ceremony Programme
+  const totalSubsections = 5;
+
+  // Jump to specific subsection rigidly
+  const scrollToSubsection = useCallback((index: number) => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const clampedIndex = Math.max(0, Math.min(index, totalSubsections - 1));
+    const targetTop = clampedIndex * el.clientHeight;
+    
+    isNavigatingRef.current = true;
+    el.scrollTo({
+      top: targetTop,
+      behavior: 'smooth',
+    });
+    setActiveSubsection(clampedIndex);
+
+    setTimeout(() => {
+      isNavigatingRef.current = false;
+    }, 450);
+  }, [totalSubsections]);
+
+  // Handle rigid step-by-step wheel scroll inside invitation inner container
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+
+    let wheelLock = false;
+    let wheelTimeout: NodeJS.Timeout | null = null;
+
+    const handleInnerWheel = (e: WheelEvent) => {
+      if (Math.abs(e.deltaY) < 18) return;
+
+      const currentIdx = Math.round(el.scrollTop / el.clientHeight);
+
+      if (e.deltaY > 0) {
+        // Scrolling DOWN
+        if (currentIdx < totalSubsections - 1) {
+          e.preventDefault();
+          e.stopPropagation();
+          if (wheelLock) return;
+          wheelLock = true;
+          scrollToSubsection(currentIdx + 1);
+        } else {
+          // At last subsection: let event bubble to main container to scroll to Countdown
+        }
+      } else if (e.deltaY < 0) {
+        // Scrolling UP
+        if (currentIdx > 0) {
+          e.preventDefault();
+          e.stopPropagation();
+          if (wheelLock) return;
+          wheelLock = true;
+          scrollToSubsection(currentIdx - 1);
+        } else {
+          // At subsection 1 (index 0): let event bubble to main container to scroll to Hero
+        }
+      }
+
+      if (wheelTimeout) clearTimeout(wheelTimeout);
+      wheelTimeout = setTimeout(() => {
+        wheelLock = false;
+      }, 500);
+    };
+
+    // Track scroll position to keep active subsection in sync
+    const handleScroll = () => {
+      if (!isNavigatingRef.current && el.clientHeight > 0) {
+        const idx = Math.round(el.scrollTop / el.clientHeight);
+        setActiveSubsection(Math.max(0, Math.min(idx, totalSubsections - 1)));
+      }
+    };
+
+    // Touch events for mobile rigid swipe
+    const handleTouchStart = (e: TouchEvent) => {
+      touchStartYRef.current = e.touches[0].clientY;
+    };
+
+    const handleTouchEnd = (e: TouchEvent) => {
+      if (touchStartYRef.current === null) return;
+      const touchEndY = e.changedTouches[0].clientY;
+      const diffY = touchStartYRef.current - touchEndY;
+      touchStartYRef.current = null;
+
+      if (Math.abs(diffY) > 35) {
+        const currentIdx = Math.round(el.scrollTop / el.clientHeight);
+        if (diffY > 0) {
+          // Swipe up -> next subsection
+          if (currentIdx < totalSubsections - 1) {
+            scrollToSubsection(currentIdx + 1);
+          } else if (onScrollNext) {
+            onScrollNext();
+          }
+        } else {
+          // Swipe down -> prev subsection
+          if (currentIdx > 0) {
+            scrollToSubsection(currentIdx - 1);
+          } else if (onScrollPrev) {
+            onScrollPrev();
+          }
+        }
+      }
+    };
+
+    el.addEventListener('wheel', handleInnerWheel, { passive: false });
+    el.addEventListener('scroll', handleScroll, { passive: true });
+    el.addEventListener('touchstart', handleTouchStart, { passive: true });
+    el.addEventListener('touchend', handleTouchEnd, { passive: true });
+
+    return () => {
+      el.removeEventListener('wheel', handleInnerWheel);
+      el.removeEventListener('scroll', handleScroll);
+      el.removeEventListener('touchstart', handleTouchStart);
+      el.removeEventListener('touchend', handleTouchEnd);
+      if (wheelTimeout) clearTimeout(wheelTimeout);
+    };
+  }, [scrollToSubsection, totalSubsections, onScrollNext, onScrollPrev]);
+
+  return (
+    <section
+      id="invitation-card-section"
+      className="snap-panel relative w-screen h-[100svh] overflow-hidden bg-[#071124] flex items-center justify-center select-none"
+    >
+      {/* Ambient background blur for wider viewports */}
+      <div
+        className="absolute inset-0 bg-center bg-cover scale-110 blur-2xl opacity-40 pointer-events-none"
+        style={{
+          backgroundImage: `url(${LOCAL_CARD_PATH}), url('${HIGGSFIELD_CDN_URL}')`,
+        }}
+      />
+
+      {/* Main Card Container */}
+      <div className="relative z-10 h-full max-h-[100svh] aspect-[3032/5504] max-w-full mx-auto flex items-center justify-center overflow-hidden shadow-2xl">
+        {/* Background Card Image with Persian Blue Floral Border & Cusped Gold Arch */}
+        <img
+          src={LOCAL_CARD_PATH}
+          alt="Wedding Invitation Card"
+          className="w-full h-full max-h-[100svh] aspect-[3032/5504] object-contain select-none m-0 p-0 pointer-events-none"
+          loading="eager"
+          referrerPolicy="no-referrer"
+          onError={(e) => {
+            const target = e.currentTarget;
+            if (target.src !== HIGGSFIELD_CDN_URL) {
+              target.src = HIGGSFIELD_CDN_URL;
+            }
+          }}
+        />
+
+        {/* 
+          OVERLAY CONTAINER:
+          Positioned strictly inside the parchment area of the background image
+        */}
+        <div className="absolute top-[10.5%] bottom-[16%] left-[12%] right-[12%] z-20 flex flex-col overflow-hidden">
+          {/* 
+            RIGID INNER SCROLL CONTAINER
+          */}
+          <div
+            id="invitation-inner-scroll"
+            ref={scrollRef}
+            style={{
+              paddingBottom: '0px',
+              paddingLeft: '12px',
+              paddingRight: '12px',
+              paddingTop: '0px',
+              scrollSnapType: 'y mandatory',
+              WebkitOverflowScrolling: 'touch',
+            }}
+            className="w-full flex-1 overflow-y-auto overscroll-contain text-center text-[#1E293B] select-text no-scrollbar"
+          >
+            {/* ========================================================= */}
+            {/* SUBSECTION 1: GURBANI QUOTE AS ATTACHED IMAGE #1          */}
+            {/* ========================================================= */}
+            <div className="w-full h-full min-h-full max-h-full shrink-0 snap-start flex flex-col justify-center items-center px-2 py-3 text-center select-text">
+              {/* Top Ik Onkar calligraphic emblem */}
+              <div className="mb-2.5">
+                <span
+                  style={{ fontFamily: "'Noto Serif Gurmukhi', serif" }}
+                  className="text-5xl sm:text-6xl font-bold text-[#B38728] drop-shadow-[0_1px_3px_rgba(0,0,0,0.2)] select-none"
+                >
+                  ੴ
+                </span>
+              </div>
+
+              {/* Exact Horizontal Lockup: Khanda | ੴ ਸਤਿਗੁਰੂ ਪ੍ਰਸਾਦਿ ॥ | Khanda */}
+              <div className="flex items-center justify-center gap-3 my-2 text-[#855B14]">
+                <KhandaEmblemSvg size={24} className="text-[#C9A24B]" />
+                <span
+                  style={{ fontFamily: "'Noto Serif Gurmukhi', serif" }}
+                  className="font-bold text-lg sm:text-xl text-[#7A5010] tracking-wider"
+                >
+                  ੴ ਸਤਿਗੁਰੂ ਪ੍ਰਸਾਦਿ ॥
+                </span>
+                <KhandaEmblemSvg size={24} className="text-[#C9A24B]" />
+              </div>
+
+              {/* Ornate Gold Divider */}
+              <OrnateCardDivider className="my-3" />
+
+              {/* Exact Unaltered Gurbani Quote from Image #1 */}
+              <div
+                style={{
+                  fontFamily: "'Noto Serif Gurmukhi', serif",
+                  fontSize: '13px',
+                  fontWeight: 'bold',
+                  lineHeight: '20.75px',
+                }}
+                className="w-full max-w-[360px] text-[#1E293B] space-y-2.5 my-2"
+              >
+                <p className="whitespace-nowrap tracking-tight">ਸਤਿਗੁਰ ਦਾਤੇ ਕਾਜ ਰਚਾਇਆ ਆਪਣੀ ਮੇਹਰ ਕਰਾਈ ॥</p>
+                <p className="whitespace-nowrap tracking-tight">ਦਾਸਾਂ ਕਾਰਜ ਆਪ ਸਵਾਰੇ ਇਹ ਉਸਦੀ ਵਡਿਆਈ ॥</p>
+              </div>
+
+              {/* Next step prompt */}
+              <button
+                onClick={() => scrollToSubsection(1)}
+                className="mt-6 inline-flex items-center gap-1.5 text-xs font-serif font-semibold tracking-widest text-[#855B14] hover:text-[#0B1A3A] transition-colors py-1 px-3"
+              >
+                <span>Marriage Ceremony</span>
+                <ChevronDown className="w-4 h-4 animate-bounce" />
+              </button>
+            </div>
+
+            {/* ========================================================= */}
+            {/* SUBSECTION 2: MARRIAGE CEREMONY & R.S.V.P. (COMBINED)     */}
+            {/* ========================================================= */}
+            <div
+              style={{ paddingTop: '22px' }}
+              className="w-full h-full min-h-full max-h-full shrink-0 snap-start flex flex-col justify-center items-center px-2 pb-2 text-center select-text"
+            >
+              {/* Grandparents Hosts */}
+              <p className="font-serif font-bold text-xs sm:text-sm text-[#1E293B] tracking-wide leading-relaxed">
+                Sdn. Jasmail Kaur &amp; S. Jagir Singh Gill
+              </p>
+
+              {/* Invitation note */}
+              <p className="font-serif text-[11px] sm:text-xs text-[#475569] italic my-1 leading-relaxed">
+                Request the honour of your presence at the
+                <br />
+                auspicious occasion of the
+              </p>
+
+              {/* Ceremony Title */}
+              <h2
+                style={{ fontFamily: "'Great Vibes', cursive" }}
+                className="text-3xl sm:text-4xl text-[#7A1F2B] tracking-wide my-1 leading-tight drop-shadow-sm font-medium"
+              >
+                Marriage Ceremony
+              </h2>
+
+              {/* Relationship */}
+              <p className="font-serif italic text-[11px] sm:text-xs text-[#475569] my-0.5">
+                of their beloved grandson
+              </p>
+
+              {/* Groom */}
+              <div className="mt-0.5">
+                <h3
+                  style={{ fontFamily: "'Great Vibes', cursive" }}
+                  className="text-2xl sm:text-[28px] text-[#0B1A3A] tracking-wide leading-tight drop-shadow-sm font-medium"
+                >
+                  Simranjeet Singh Gill
+                </h3>
+                <p className="font-serif text-[9.5px] sm:text-[10px] text-[#556477] -mt-0.5 leading-tight">
+                  (S/o Sdn. Narinder kaur &amp; S. Gurpreet Singh Gill)
+                </p>
+              </div>
+
+              {/* "with" */}
+              <p className="font-serif italic text-xs text-[#B38728] my-0.5">
+                with
+              </p>
+
+              {/* Bride */}
+              <div>
+                <h3
+                  style={{ fontFamily: "'Great Vibes', cursive" }}
+                  className="text-2xl sm:text-[28px] text-[#0B1A3A] tracking-wide leading-tight drop-shadow-sm font-medium"
+                >
+                  Ravneet Kaur
+                </h3>
+                <p className="font-serif text-[9.5px] sm:text-[10px] text-[#556477] -mt-0.5 leading-tight">
+                  (S/o Sdn. Narinder kaur &amp; S. Lakhwinder Singh Chopra)
+                </p>
+              </div>
+
+              {/* Date */}
+              <p className="font-serif font-bold text-xs sm:text-[13px] text-[#7A1F2B] tracking-wide mt-1.5 mb-1 leading-snug">
+                On Saturday, 31ˢᵗ October, 2026
+              </p>
+
+              {/* Thin Elegant Gold Line Divider */}
+              <div className="w-24 h-[1px] bg-gradient-to-r from-transparent via-[#C9A24B]/70 to-transparent my-1 mx-auto" />
+
+              {/* R.S.V.P. Heading */}
+              <h4 className="font-serif font-bold text-xs sm:text-[13px] text-[#0B1A3A] tracking-[0.25em] uppercase mb-1">
+                R.S.V.P.
+              </h4>
+
+              {/* 2-column balanced RSVP names list */}
+              <div className="grid grid-cols-2 gap-x-5 gap-y-1 text-left font-serif text-[10.5px] sm:text-[11.5px] text-[#1E293B] max-w-[260px] mx-auto leading-relaxed">
+                <div className="space-y-0.5 text-right pr-2.5 border-r border-[#C9A24B]/35">
+                  <p>Sarabpreet Singh</p>
+                  <p>Paramjit Singh</p>
+                  <p>Devinder Singh</p>
+                </div>
+                <div className="space-y-0.5 text-left pl-2.5">
+                  <p>Gurmukh Singh</p>
+                  <p>Gurbachan Singh</p>
+                  <p>Baldev Singh</p>
+                </div>
+              </div>
+
+              {/* Thin Elegant Gold Line Divider */}
+              <div className="w-24 h-[1px] bg-gradient-to-r from-transparent via-[#C9A24B]/70 to-transparent my-1 mx-auto" />
+
+              {/* Awaiting Nanke and Dadke */}
+              <div className="mt-1">
+                <span className="inline-block font-serif font-bold text-[11px] sm:text-xs tracking-wider text-[#7A1F2B] bg-[#FDF6E2] px-3.5 py-0.5 rounded-full border border-[#D4AF37]/60 shadow-xs">
+                  awaiting Nanke and Dadke
+                </span>
+              </div>
+            </div>
+
+            {/* ========================================================= */}
+            {/* SUBSECTION 3: SAGAN AND RING CEREMONY                     */}
+            {/* ========================================================= */}
+            <div className="w-full h-full min-h-full max-h-full shrink-0 snap-start flex flex-col justify-center items-center px-4 py-4 text-center select-text">
+              {/* Event Title */}
+              <h2
+                style={{ fontFamily: "'Great Vibes', cursive" }}
+                className="text-3xl sm:text-4xl text-[#7A1F2B] tracking-wide my-1 leading-tight drop-shadow-sm font-medium"
+              >
+                Sagan and Ring Ceremony
+              </h2>
+
+              {/* Subtle Gold Line Accent */}
+              <div className="w-20 h-[1px] bg-gradient-to-r from-transparent via-[#C9A24B]/70 to-transparent my-2" />
+
+              {/* Date */}
+              <p className="font-serif font-bold text-xs sm:text-sm text-[#0B1A3A] tracking-wide">
+                on Thursday, 29ᵗʰ October, 2026
+              </p>
+
+              {/* Time */}
+              <span className="inline-block mt-2.5 text-xs sm:text-[13px] font-bold px-4 py-1 rounded-full bg-[#FAF5EB] text-[#7A1F2B] border border-[#C9A24B]/60 shadow-xs">
+                11:00 am
+              </span>
+
+              {/* Venue details */}
+              <div className="mt-5 max-w-[280px] mx-auto text-center space-y-1.5">
+                <p className="font-serif font-bold text-xs sm:text-sm text-[#1E293B]">
+                  venue: Majestic Crown - Luxury Banquet
+                </p>
+                <p className="font-serif text-[11px] sm:text-xs text-[#526071] leading-relaxed">
+                  24, Shivaji Marg, Najafgarh Rd, Delhi - 110015
+                </p>
+
+                {/* Google Maps link */}
+                <a
+                  href="https://www.google.com/maps/search/?api=1&query=Majestic+Crown+Luxury+Banquet+24+Shivaji+Marg+Najafgarh+Rd+Delhi+110015"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-xs font-serif font-semibold text-[#875512] hover:text-[#0B1A3A] mt-2.5 underline underline-offset-4 transition-colors"
+                >
+                  <MapPin className="w-3.5 h-3.5 text-[#875512]" />
+                  <span>View on Google Maps</span>
+                </a>
+              </div>
+            </div>
+
+            {/* ========================================================= */}
+            {/* SUBSECTION 4: MEHENDI & JAGGO (COMPILED IN ONE PAGE)      */}
+            {/* ========================================================= */}
+            <div className="w-full h-full min-h-full max-h-full shrink-0 snap-start flex flex-col justify-center items-center px-3 py-3 text-center select-text">
+              {/* Part A: Mehendi Ceremony */}
+              <div className="w-full max-w-[320px] flex flex-col items-center">
+                <h2
+                  style={{ fontFamily: "'Great Vibes', cursive" }}
+                  className="text-2xl sm:text-3xl text-[#7A1F2B] tracking-wide leading-tight drop-shadow-sm font-medium"
+                >
+                  Mehendi Ceremony
+                </h2>
+
+                <p className="font-serif font-bold text-xs text-[#0B1A3A] mt-1 tracking-wide">
+                  on Thursday, 29ᵗʰ October, 2026
+                </p>
+
+                <div className="mt-1 flex items-center justify-center gap-2">
+                  <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-[#FAF5EB] text-[#7A1F2B] border border-[#C9A24B]/60 shadow-xs">
+                    7:00 pm
+                  </span>
+                  <span className="font-serif text-xs text-[#1E293B]">
+                    venue: <span className="font-bold">Gill Residence</span>
+                  </span>
+                </div>
+
+                <a
+                  href="https://maps.app.goo.gl/aGf1FZjs1Bc1Z2kaA"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-[11px] font-serif font-semibold text-[#875512] hover:text-[#0B1A3A] mt-1 underline underline-offset-4 transition-colors"
+                >
+                  <MapPin className="w-3.5 h-3.5 text-[#875512]" />
+                  <span>View on Google Maps</span>
+                </a>
+              </div>
+
+              {/* Ornate Gold Floral Divider Between Mehendi and Jaggo (Increased spacing by 200%) */}
+              <div className="my-6 w-full flex items-center justify-center">
+                <div className="h-[1px] w-12 bg-gradient-to-r from-transparent via-[#C9A24B] to-transparent" />
+                <div className="mx-2 text-[#936B1B] text-[8px] flex items-center gap-1">
+                  <span>✦</span>
+                  <div className="w-1.5 h-1.5 rounded-full bg-[#7A1F2B] border border-[#C9A24B]" />
+                  <span>✦</span>
+                </div>
+                <div className="h-[1px] w-12 bg-gradient-to-l from-transparent via-[#C9A24B] to-transparent" />
+              </div>
+
+              {/* Part B: Jaggo and Cocktail */}
+              <div className="w-full max-w-[320px] flex flex-col items-center">
+                <h2
+                  style={{ fontFamily: "'Great Vibes', cursive" }}
+                  className="text-2xl sm:text-3xl text-[#7A1F2B] tracking-wide leading-tight drop-shadow-sm font-medium"
+                >
+                  Jaggo and Cocktail
+                </h2>
+                <p className="font-serif italic text-[11px] font-medium text-[#B38728] tracking-wider -mt-0.5">
+                  Mehendi Ceremony
+                </p>
+
+                <p className="font-serif font-bold text-xs text-[#0B1A3A] mt-1 tracking-wide">
+                  on Friday, 30ᵗʰ October, 2026
+                </p>
+
+                <div className="mt-1 flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2">
+                  <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-[#FAF5EB] text-[#7A1F2B] border border-[#C9A24B]/60 shadow-xs">
+                    7:00 pm
+                  </span>
+                  <span className="font-serif text-xs text-[#1E293B]">
+                    venue: <span className="font-bold">KK residency, Yamunanagar</span>
+                  </span>
+                </div>
+
+                <a
+                  href="https://maps.app.goo.gl/SRHrG74Y61UiKgqw7"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-[11px] font-serif font-semibold text-[#875512] hover:text-[#0B1A3A] mt-1 underline underline-offset-4 transition-colors"
+                >
+                  <MapPin className="w-3.5 h-3.5 text-[#875512]" />
+                  <span>View on Google Maps</span>
+                </a>
+              </div>
+            </div>
+
+            {/* ========================================================= */}
+            {/* SUBSECTION 5: WEDDING CEREMONY PROGRAMME                  */}
+            {/* ========================================================= */}
+            <div className="w-full h-full min-h-full max-h-full shrink-0 snap-start flex flex-col justify-center items-center px-4 py-3 text-center select-text">
+              {/* Ceremony Title */}
+              <h2
+                style={{ fontFamily: "'Great Vibes', cursive" }}
+                className="text-3xl sm:text-4xl text-[#7A1F2B] tracking-wide leading-tight my-1 drop-shadow-sm font-medium"
+              >
+                Wedding Ceremony
+              </h2>
+
+              {/* Subtle Gold Line Accent */}
+              <div className="w-20 h-[1px] bg-gradient-to-r from-transparent via-[#C9A24B]/70 to-transparent my-1.5" />
+
+              {/* Date */}
+              <p className="font-serif font-bold text-xs sm:text-sm text-[#0B1A3A] mb-3 tracking-wide">
+                On Saturday, 31ˢᵗ October, 2026
+              </p>
+
+              {/* Timeline Items - Spaced & Airy */}
+              <div className="w-full max-w-[280px] space-y-3 text-center text-[#1E293B]">
+                {/* 1. Sehra Bandi & Barat */}
+                <div className="leading-snug space-y-0.5">
+                  <p className="font-serif font-bold text-xs sm:text-[13px] text-[#0F1E36]">
+                    Sehra bandi: 8:00am &bull; Departure of Barat: 9:30am
+                  </p>
+                  <p className="font-serif text-[10px] sm:text-[11px] text-[#556477]">
+                    at KK residence, Yamunanagar
+                  </p>
+                  <a
+                    href="https://maps.app.goo.gl/SRHrG74Y61UiKgqw7"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-[10.5px] font-serif font-semibold text-[#875512] hover:text-[#0B1A3A] underline underline-offset-4 transition-colors"
+                  >
+                    <MapPin className="w-3 h-3 text-[#875512]" /> Map Location
+                  </a>
+                </div>
+
+                {/* 2. Anand Karaj */}
+                <div className="leading-snug pt-1 space-y-0.5">
+                  <p className="font-serif font-bold text-xs sm:text-[13px] text-[#7A1F2B]">
+                    Anand karaj: 10:30am
+                  </p>
+                  <p className="font-serif text-[10px] sm:text-[11px] text-[#556477]">
+                    at Gurudwara Buria Sahib, Jagadhri, yamunanagar
+                  </p>
+                  <a
+                    href="https://maps.app.goo.gl/geGbUJPRXewe28Zv9"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-[10.5px] font-serif font-semibold text-[#875512] hover:text-[#0B1A3A] underline underline-offset-4 transition-colors"
+                  >
+                    <MapPin className="w-3 h-3 text-[#875512]" /> Map Location
+                  </a>
+                </div>
+
+                {/* 3. Lunch */}
+                <div className="leading-snug pt-1 space-y-0.5">
+                  <p className="font-serif font-bold text-xs sm:text-[13px] text-[#0F1E36]">
+                    Lunch: 1:00pm &bull; Venue: Ambience Resort
+                  </p>
+                  <a
+                    href="https://maps.app.goo.gl/3YTLBFNrsap4dx1M7"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-[10.5px] font-serif font-semibold text-[#875512] hover:text-[#0B1A3A] underline underline-offset-4 transition-colors"
+                  >
+                    <MapPin className="w-3 h-3 text-[#875512]" /> Map Location
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+};
