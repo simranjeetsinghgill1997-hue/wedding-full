@@ -1,6 +1,7 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { WEDDING_DETAILS } from '../data/weddingData';
 import { ChevronDown } from 'lucide-react';
+import { HeroBackgroundAnimation } from './HeroBackgroundAnimation';
 
 interface HeroSectionProps {
   onScrollNext?: () => void;
@@ -8,22 +9,32 @@ interface HeroSectionProps {
 
 export const HeroSection: React.FC<HeroSectionProps> = ({ onScrollNext }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const [videoLoaded, setVideoLoaded] = useState(false);
 
   useEffect(() => {
     // Ensure video is strictly muted and auto-plays on mobile touch browsers
     if (videoRef.current) {
       videoRef.current.muted = true;
       videoRef.current.defaultMuted = true;
-      videoRef.current.play().catch(() => {
-        // Autoplay policy fallback: silent catch
+      videoRef.current.play().then(() => {
+        setVideoLoaded(true);
+      }).catch(() => {
+        // Autoplay policy or 403 error fallback
       });
     }
   }, []);
 
   return (
     <section className="snap-panel relative w-screen h-[100svh] overflow-hidden bg-[#0B1A3A] flex flex-col justify-between">
-      {/* Background Video */}
-      <div className="absolute inset-0 z-0 overflow-hidden">
+      {/* High-fidelity Canvas Starry & Golden Bokeh Animation */}
+      <HeroBackgroundAnimation />
+
+      {/* Video Layer (Smoothly fades in if video successfully streams) */}
+      <div
+        className={`absolute inset-0 z-0 overflow-hidden pointer-events-none transition-opacity duration-1000 ${
+          videoLoaded ? 'opacity-100' : 'opacity-0'
+        }`}
+      >
         <video
           ref={videoRef}
           src={WEDDING_DETAILS.videoUrl}
@@ -31,6 +42,8 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onScrollNext }) => {
           loop
           muted
           playsInline
+          onCanPlay={() => setVideoLoaded(true)}
+          onError={() => setVideoLoaded(false)}
           className="w-full h-full object-cover object-center"
         />
       </div>
