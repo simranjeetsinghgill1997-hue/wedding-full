@@ -105,17 +105,15 @@
   scrollbar-width: none;
 }
 
-/* Scroll snapping for abrupt full-page takeover */
+/* Controlled container scrolling without native snap conflict */
 .snap-container {
-  scroll-snap-type: y mandatory;
   scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-y: contain;
 }
 
 .snap-panel {
-  scroll-snap-align: start;
-  scroll-snap-stop: always;
+  flex-shrink: 0;
 }
 
 /* Subtle Persian gold shimmer keyframe */

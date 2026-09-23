@@ -3,8 +3,8 @@ import { ChevronDown, MapPin } from 'lucide-react';
 import { KhandaEmblemSvg } from './Ornaments';
 
 interface BlessingSectionProps {
-  onScrollNext?: () => void;
-  onScrollPrev?: () => void;
+  activeSubsection?: number;
+  onSubsectionChange?: (index: number) => void;
 }
 
 const LOCAL_CARD_PATH = '/assets/invitation_card_higgsfield.webp';
@@ -25,15 +25,12 @@ const OrnateCardDivider: React.FC<{ className?: string }> = ({ className = '' })
 );
 
 export const BlessingSection: React.FC<BlessingSectionProps> = ({
-  onScrollNext,
-  onScrollPrev,
+  activeSubsection = 0,
+  onSubsectionChange,
 }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [activeSubsection, setActiveSubsection] = useState<number>(0);
-  const isNavigatingRef = useRef(false);
-  const touchStartYRef = useRef<number | null>(null);
 
-  // Now 5 subsections:
+  // 5 subsections in Invitation Details:
   // 0: Gurbani Quote
   // 1: Marriage Ceremony & RSVP
   // 2: Sagan and Ring Ceremony
@@ -41,16 +38,6 @@ export const BlessingSection: React.FC<BlessingSectionProps> = ({
   // 4: Wedding Ceremony Programme
   const totalSubsections = 5;
   const [visitedSubsections, setVisitedSubsections] = useState<Set<number>>(() => new Set([0]));
-  const [showProgressHint, setShowProgressHint] = useState<string | null>(null);
-  const hintTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  const showHint = useCallback((message: string) => {
-    if (hintTimeoutRef.current) clearTimeout(hintTimeoutRef.current);
-    setShowProgressHint(message);
-    hintTimeoutRef.current = setTimeout(() => {
-      setShowProgressHint(null);
-    }, 2200);
-  }, []);
 
   const markVisited = useCallback((index: number) => {
     setVisitedSubsections((prev) => {
@@ -61,153 +48,34 @@ export const BlessingSection: React.FC<BlessingSectionProps> = ({
     });
   }, []);
 
-  // Jump to specific subsection rigidly
-  const scrollToSubsection = useCallback((index: number) => {
+  // Sync scroll position when activeSubsection changes
+  useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
-    const clampedIndex = Math.max(0, Math.min(index, totalSubsections - 1));
+    const clampedIndex = Math.max(0, Math.min(activeSubsection, totalSubsections - 1));
     const targetTop = clampedIndex * el.clientHeight;
     
-    isNavigatingRef.current = true;
     el.scrollTo({
       top: targetTop,
       behavior: 'smooth',
     });
-    setActiveSubsection(clampedIndex);
     markVisited(clampedIndex);
+  }, [activeSubsection, totalSubsections, markVisited]);
 
-    setTimeout(() => {
-      isNavigatingRef.current = false;
-    }, 450);
-  }, [totalSubsections, markVisited]);
-
-  const hasVisitedAll = visitedSubsections.size >= totalSubsections;
-
-  // Handle rigid step-by-step wheel scroll inside invitation inner container
+  // Keep pixel-perfect alignment on resize / orientation change
   useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-
-    let wheelLock = false;
-    let wheelTimeout: NodeJS.Timeout | null = null;
-
-    const handleInnerWheel = (e: WheelEvent) => {
-      if (Math.abs(e.deltaY) < 18) return;
-
-      const currentIdx = Math.round(el.scrollTop / el.clientHeight);
-
-      if (e.deltaY > 0) {
-        // Scrolling DOWN
-        if (currentIdx < totalSubsections - 1) {
-          e.preventDefault();
-          e.stopPropagation();
-          if (wheelLock) return;
-          wheelLock = true;
-          scrollToSubsection(currentIdx + 1);
-        } else {
-          // At last subsection
-          if (!hasVisitedAll) {
-            e.preventDefault();
-            e.stopPropagation();
-            showHint(`Please explore all invitation details (${visitedSubsections.size}/${totalSubsections} viewed) before continuing`);
-          } else {
-            // All visited: let event bubble to main container or trigger onScrollNext
-            if (onScrollNext && !wheelLock) {
-              e.preventDefault();
-              wheelLock = true;
-              onScrollNext();
-            }
-          }
-        }
-      } else if (e.deltaY < 0) {
-        // Scrolling UP
-        if (currentIdx > 0) {
-          e.preventDefault();
-          e.stopPropagation();
-          if (wheelLock) return;
-          wheelLock = true;
-          scrollToSubsection(currentIdx - 1);
-        } else {
-          // At first subsection (index 0)
-          if (!hasVisitedAll) {
-            e.preventDefault();
-            e.stopPropagation();
-            showHint(`Please scroll through all 5 invitation pages (${visitedSubsections.size}/${totalSubsections} viewed) to proceed`);
-          } else {
-            // All visited: allow navigating back to Hero
-            if (onScrollPrev && !wheelLock) {
-              e.preventDefault();
-              wheelLock = true;
-              onScrollPrev();
-            }
-          }
-        }
-      }
-
-      if (wheelTimeout) clearTimeout(wheelTimeout);
-      wheelTimeout = setTimeout(() => {
-        wheelLock = false;
-      }, 500);
+    const handleResize = () => {
+      const el = scrollRef.current;
+      if (!el) return;
+      const clampedIndex = Math.max(0, Math.min(activeSubsection, totalSubsections - 1));
+      el.scrollTo({
+        top: clampedIndex * el.clientHeight,
+        behavior: 'auto',
+      });
     };
-
-    // Track scroll position to keep active subsection in sync
-    const handleScroll = () => {
-      if (!isNavigatingRef.current && el.clientHeight > 0) {
-        const idx = Math.round(el.scrollTop / el.clientHeight);
-        const clamped = Math.max(0, Math.min(idx, totalSubsections - 1));
-        setActiveSubsection(clamped);
-        markVisited(clamped);
-      }
-    };
-
-    // Touch events for mobile rigid swipe
-    const handleTouchStart = (e: TouchEvent) => {
-      touchStartYRef.current = e.touches[0].clientY;
-    };
-
-    const handleTouchEnd = (e: TouchEvent) => {
-      if (touchStartYRef.current === null) return;
-      const touchEndY = e.changedTouches[0].clientY;
-      const diffY = touchStartYRef.current - touchEndY;
-      touchStartYRef.current = null;
-
-      if (Math.abs(diffY) > 35) {
-        const currentIdx = Math.round(el.scrollTop / el.clientHeight);
-        if (diffY > 0) {
-          // Swipe up -> next subsection
-          if (currentIdx < totalSubsections - 1) {
-            scrollToSubsection(currentIdx + 1);
-          } else if (hasVisitedAll && onScrollNext) {
-            onScrollNext();
-          } else if (!hasVisitedAll) {
-            showHint(`Please scroll through all invitation details (${visitedSubsections.size}/${totalSubsections} viewed)`);
-          }
-        } else {
-          // Swipe down -> prev subsection
-          if (currentIdx > 0) {
-            scrollToSubsection(currentIdx - 1);
-          } else if (hasVisitedAll && onScrollPrev) {
-            onScrollPrev();
-          } else if (!hasVisitedAll) {
-            showHint(`Please scroll through all 5 pages (${visitedSubsections.size}/${totalSubsections} viewed) before leaving`);
-          }
-        }
-      }
-    };
-
-    el.addEventListener('wheel', handleInnerWheel, { passive: false });
-    el.addEventListener('scroll', handleScroll, { passive: true });
-    el.addEventListener('touchstart', handleTouchStart, { passive: true });
-    el.addEventListener('touchend', handleTouchEnd, { passive: true });
-
-    return () => {
-      el.removeEventListener('wheel', handleInnerWheel);
-      el.removeEventListener('scroll', handleScroll);
-      el.removeEventListener('touchstart', handleTouchStart);
-      el.removeEventListener('touchend', handleTouchEnd);
-      if (wheelTimeout) clearTimeout(wheelTimeout);
-    };
-  }, [scrollToSubsection, totalSubsections, onScrollNext, onScrollPrev, hasVisitedAll, visitedSubsections.size, markVisited, showHint]);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [activeSubsection, totalSubsections]);
 
   return (
     <section
@@ -250,16 +118,14 @@ export const BlessingSection: React.FC<BlessingSectionProps> = ({
           <div
             id="invitation-inner-scroll"
             ref={scrollRef}
-            data-visited-all={hasVisitedAll ? 'true' : 'false'}
+            data-visited-all={visitedSubsections.size >= totalSubsections ? 'true' : 'false'}
             style={{
               paddingBottom: '0px',
               paddingLeft: '12px',
               paddingRight: '12px',
               paddingTop: '0px',
-              scrollSnapType: 'y mandatory',
-              WebkitOverflowScrolling: 'touch',
             }}
-            className="w-full flex-1 overflow-y-auto overscroll-contain text-center text-[#1E293B] select-text no-scrollbar"
+            className="w-full flex-1 overflow-hidden text-center text-[#1E293B] select-text no-scrollbar"
           >
             {/* ========================================================= */}
             {/* SUBSECTION 1: GURBANI QUOTE (Font size increased by 10%)  */}
@@ -306,8 +172,8 @@ export const BlessingSection: React.FC<BlessingSectionProps> = ({
 
               {/* Next step prompt */}
               <button
-                onClick={() => scrollToSubsection(1)}
-                className="mt-5 inline-flex items-center gap-1.5 text-[13px] font-serif font-semibold tracking-widest text-[#855B14] hover:text-[#0B1A3A] transition-colors py-1 px-3"
+                onClick={() => onSubsectionChange?.(1)}
+                className="mt-5 inline-flex items-center gap-1.5 text-[13px] font-serif font-semibold tracking-widest text-[#855B14] hover:text-[#0B1A3A] transition-colors py-1 px-3 cursor-pointer"
               >
                 <span>Marriage Ceremony</span>
                 <ChevronDown className="w-4 h-4 animate-bounce" />
@@ -632,9 +498,9 @@ export const BlessingSection: React.FC<BlessingSectionProps> = ({
             return (
               <button
                 key={i}
-                onClick={() => scrollToSubsection(i)}
+                onClick={() => onSubsectionChange?.(i)}
                 title={`Page ${i + 1} of ${totalSubsections}${isVisited ? ' (viewed)' : ''}`}
-                className={`w-2 h-2 rounded-full transition-all duration-300 ${
+                className={`w-2 h-2 rounded-full transition-all duration-300 cursor-pointer ${
                   isActive
                     ? 'w-2.5 h-2.5 bg-[#D4AF37] ring-2 ring-[#7A1F2B]'
                     : isVisited
@@ -646,13 +512,6 @@ export const BlessingSection: React.FC<BlessingSectionProps> = ({
             );
           })}
         </div>
-
-        {/* Gentle Toast / Hint when user attempts to scroll out prematurely */}
-        {showProgressHint && (
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-40 bg-[#0B1A3A]/95 text-[#FDF6E2] text-xs font-serif px-4 py-2 rounded-full border border-[#D4AF37]/50 shadow-lg backdrop-blur-sm pointer-events-none transition-opacity duration-200">
-            {showProgressHint}
-          </div>
-        )}
       </div>
     </section>
   );

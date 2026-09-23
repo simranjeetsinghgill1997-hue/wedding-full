@@ -6,22 +6,49 @@ import { AudioPlayer, AudioPlayerRef } from './components/AudioPlayer';
 import { GoldSparkleOverlay } from './components/GoldSparkleOverlay';
 import { CurtainOpeningAnimation } from './components/CurtainOpeningAnimation';
 
+// Total unified steps in the single-scroll timeline:
+// Step 0: Hero Section (Section index 0)
+// Step 1: Invitation Details - Subsection 0 (Gurbani Quote) (Section index 1)
+// Step 2: Invitation Details - Subsection 1 (Marriage Ceremony & RSVP) (Section index 1)
+// Step 3: Invitation Details - Subsection 2 (Sagan and Ring Ceremony) (Section index 1)
+// Step 4: Invitation Details - Subsection 3 (Mehendi & Jaggo) (Section index 1)
+// Step 5: Invitation Details - Subsection 4 (Wedding Ceremony Programme) (Section index 1)
+// Step 6: Countdown Banner & Footer (Section index 2)
+const TOTAL_STEPS = 7;
+
 export default function App() {
   const containerRef = useRef<HTMLDivElement>(null);
   const audioPlayerRef = useRef<AudioPlayerRef>(null);
-  const [currentSectionIndex, setCurrentSectionIndex] = useState(0);
+  const [currentStep, setCurrentStep] = useState(0);
   const [hasStarted, setHasStarted] = useState(false);
-  const totalSections = 3;
 
-  const scrollToSection = (index: number) => {
+  const isLockedRef = useRef(false);
+  const lockTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Helper to map 7 steps to the 3 full-height section containers
+  const getSectionForStep = (step: number) => {
+    if (step === 0) return 0;
+    if (step === 6) return 2;
+    return 1;
+  };
+
+  // Helper to map 7 steps to the 5 card subsections (0 through 4)
+  const getSubsectionForStep = (step: number) => {
+    if (step <= 0) return 0;
+    if (step >= 6) return 4;
+    return step - 1;
+  };
+
+  // Scroll the outer full-height section container
+  const scrollToSection = useCallback((sectionIndex: number, behavior: ScrollBehavior = 'smooth') => {
     const container = containerRef.current;
     if (!container) return;
     const height = container.clientHeight || window.innerHeight;
     container.scrollTo({
-      top: index * height,
-      behavior: 'smooth',
+      top: sectionIndex * height,
+      behavior,
     });
-  };
+  }, []);
 
   // Trigger curtain raise and audio playback on user interaction
   const handleTapToBegin = useCallback(() => {
@@ -32,104 +59,136 @@ export default function App() {
     }
   }, [hasStarted]);
 
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
+  // Step advancement / retreat with rate-limiting lock
+  const triggerStep = useCallback((direction: 1 | -1) => {
+    if (isLockedRef.current) return;
 
-    let isLocked = false;
-    let lockTimeout: NodeJS.Timeout | null = null;
-
-    const handleWheel = (e: WheelEvent) => {
-      if (Math.abs(e.deltaY) < 18) return;
-
-      const height = container.clientHeight || window.innerHeight;
-      const currentIdx = Math.round(container.scrollTop / height);
-
-      const target = e.target as HTMLElement | null;
-      const innerScroll = (target?.closest('#invitation-inner-scroll') ||
-        document.getElementById('invitation-inner-scroll')) as HTMLElement | null;
-
-      // If user is currently in Section 1 (the invitation details section)
-      if (currentIdx === 1 && innerScroll) {
-        const atBottom = innerScroll.scrollTop + innerScroll.clientHeight >= innerScroll.scrollHeight - 8;
-        const atTop = innerScroll.scrollTop <= 8;
-        const allVisited = innerScroll.getAttribute('data-visited-all') === 'true';
-
-        // Do not allow leaving Section 1 if not all subsections have been viewed
-        if (!allVisited) {
-          e.preventDefault();
-          return;
-        }
-
-        // If at top and trying to scroll up, or at bottom and trying to scroll down, only allow if allVisited
-        if ((e.deltaY > 0 && !atBottom) || (e.deltaY < 0 && !atTop)) {
-          return;
-        }
+    setCurrentStep((prev) => {
+      const next = prev + direction;
+      if (next < 0 || next >= TOTAL_STEPS) {
+        return prev;
       }
 
+      isLockedRef.current = true;
+      if (lockTimeoutRef.current) clearTimeout(lockTimeoutRef.current);
+      lockTimeoutRef.current = setTimeout(() => {
+        isLockedRef.current = false;
+      }, 500);
+
+      return next;
+    });
+  }, []);
+
+  const goToStep = useCallback((step: number) => {
+    const clamped = Math.max(0, Math.min(step, TOTAL_STEPS - 1));
+    setCurrentStep(clamped);
+  }, []);
+
+  // Synchronize outer container scroll whenever currentStep changes
+  useEffect(() => {
+    const targetSection = getSectionForStep(currentStep);
+    scrollToSection(targetSection, 'smooth');
+  }, [currentStep, scrollToSection]);
+
+  // Handle window resizing / mobile rotation to stay perfectly aligned
+  useEffect(() => {
+    const handleResize = () => {
+      const targetSection = getSectionForStep(currentStep);
+      scrollToSection(targetSection, 'auto');
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [currentStep, scrollToSection]);
+
+  // Global unified event listeners for wheel, touch, and keyboard
+  useEffect(() => {
+    // 1. Wheel (Desktop mouse wheel & Laptop trackpad)
+    const handleWheel = (e: WheelEvent) => {
+      if (Math.abs(e.deltaY) < 14) return;
       e.preventDefault();
 
-      if (isLocked) return;
-
-      if (e.deltaY > 0 && currentIdx < totalSections - 1) {
-        isLocked = true;
-        scrollToSection(currentIdx + 1);
-      } else if (e.deltaY < 0 && currentIdx > 0) {
-        isLocked = true;
-        scrollToSection(currentIdx - 1);
+      if (e.deltaY > 0) {
+        triggerStep(1);
+      } else {
+        triggerStep(-1);
       }
-
-      if (lockTimeout) clearTimeout(lockTimeout);
-      lockTimeout = setTimeout(() => {
-        isLocked = false;
-      }, 550);
     };
 
+    // 2. Touch (Mobile phone & Tablet swipe gestures)
+    let touchStartY: number | null = null;
+    let touchStartX: number | null = null;
+    let touchTriggered = false;
+
+    const handleTouchStart = (e: TouchEvent) => {
+      if (e.touches.length > 1) return;
+      touchStartY = e.touches[0].clientY;
+      touchStartX = e.touches[0].clientX;
+      touchTriggered = false;
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (touchStartY === null || touchStartX === null) return;
+      const currentY = e.touches[0].clientY;
+      const currentX = e.touches[0].clientX;
+      const diffY = touchStartY - currentY;
+      const diffX = touchStartX - currentX;
+
+      // Prevent native browser rubber-banding/scroll if gesture is mostly vertical
+      if (Math.abs(diffY) > 6 && Math.abs(diffY) > Math.abs(diffX)) {
+        if (e.cancelable) {
+          e.preventDefault();
+        }
+      }
+
+      // Trigger one step when threshold reached
+      if (!touchTriggered && Math.abs(diffY) > 34) {
+        touchTriggered = true;
+        if (diffY > 0) {
+          triggerStep(1); // Swiped up -> next step
+        } else {
+          triggerStep(-1); // Swiped down -> previous step
+        }
+      }
+    };
+
+    const handleTouchEnd = () => {
+      touchStartY = null;
+      touchStartX = null;
+      touchTriggered = false;
+    };
+
+    // 3. Keyboard (Arrow keys, Spacebar, Page Up/Down, Home, End)
     const handleKeyDown = (e: KeyboardEvent) => {
-      const height = container.clientHeight || window.innerHeight;
-      const currentIdx = Math.round(container.scrollTop / height);
-
-      const innerScroll = document.getElementById('invitation-inner-scroll');
-      const allVisited = innerScroll?.getAttribute('data-visited-all') === 'true';
-
       if (['ArrowDown', 'PageDown', ' '].includes(e.key)) {
-        if (currentIdx === 1 && !allVisited) {
-          e.preventDefault();
-          return;
-        }
-        if (currentIdx < totalSections - 1) {
-          e.preventDefault();
-          scrollToSection(currentIdx + 1);
-        }
+        e.preventDefault();
+        triggerStep(1);
       } else if (['ArrowUp', 'PageUp'].includes(e.key)) {
-        if (currentIdx === 1 && !allVisited) {
-          e.preventDefault();
-          return;
-        }
-        if (currentIdx > 0) {
-          e.preventDefault();
-          scrollToSection(currentIdx - 1);
-        }
+        e.preventDefault();
+        triggerStep(-1);
+      } else if (e.key === 'Home') {
+        e.preventDefault();
+        goToStep(0);
+      } else if (e.key === 'End') {
+        e.preventDefault();
+        goToStep(TOTAL_STEPS - 1);
       }
     };
 
-    const handleScroll = () => {
-      const height = container.clientHeight || window.innerHeight;
-      const idx = Math.round(container.scrollTop / height);
-      setCurrentSectionIndex(idx);
-    };
-
-    container.addEventListener('wheel', handleWheel, { passive: false });
-    container.addEventListener('scroll', handleScroll, { passive: true });
+    window.addEventListener('wheel', handleWheel, { passive: false });
+    window.addEventListener('touchstart', handleTouchStart, { passive: true });
+    window.addEventListener('touchmove', handleTouchMove, { passive: false });
+    window.addEventListener('touchend', handleTouchEnd, { passive: true });
     window.addEventListener('keydown', handleKeyDown);
 
     return () => {
-      container.removeEventListener('wheel', handleWheel);
-      container.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('wheel', handleWheel);
+      window.removeEventListener('touchstart', handleTouchStart);
+      window.removeEventListener('touchmove', handleTouchMove);
+      window.removeEventListener('touchend', handleTouchEnd);
       window.removeEventListener('keydown', handleKeyDown);
-      if (lockTimeout) clearTimeout(lockTimeout);
+      if (lockTimeoutRef.current) clearTimeout(lockTimeoutRef.current);
     };
-  }, [totalSections]);
+  }, [triggerStep, goToStep]);
 
   return (
     <main className="relative w-screen h-[100svh] overflow-hidden bg-[#0B1A3A] select-none text-[#FDFBF6]">
@@ -172,27 +231,27 @@ export default function App() {
       <CurtainOpeningAnimation isOpenTriggered={hasStarted} />
 
       {/* Subtle Festive Gold Starry & Glitter Sparkle Overlay Mask (Hidden on Hero Section) */}
-      <GoldSparkleOverlay visible={currentSectionIndex > 0} />
+      <GoldSparkleOverlay visible={currentStep > 0} />
 
       {/* Background Wedding Music Player & On-Screen Toggle */}
       <AudioPlayer ref={audioPlayerRef} autoStartOnMount={false} />
 
-      {/* Scroll Container */}
+      {/* Unified Scroll Container */}
       <div
         ref={containerRef}
-        className="w-full h-full snap-container overflow-y-auto no-scrollbar relative"
+        className="w-full h-full snap-container overflow-y-auto no-scrollbar relative overscroll-none"
       >
-        {/* Section 1 — Hero */}
-        <HeroSection onScrollNext={() => scrollToSection(1)} />
+        {/* Section 0 — Hero */}
+        <HeroSection onScrollNext={() => triggerStep(1)} />
 
-        {/* Section 2 — Invitation / Blessing Card */}
+        {/* Section 1 — Invitation / Blessing Card with 5 controlled subsections */}
         <BlessingSection
-          onScrollNext={() => scrollToSection(2)}
-          onScrollPrev={() => scrollToSection(0)}
+          activeSubsection={getSubsectionForStep(currentStep)}
+          onSubsectionChange={(idx) => goToStep(idx + 1)}
         />
 
-        {/* Section 3 — Countdown Banner (Footer) */}
-        <CountdownBanner onScrollTop={() => scrollToSection(0)} />
+        {/* Section 2 — Countdown Banner & Footer */}
+        <CountdownBanner onScrollTop={() => goToStep(0)} />
       </div>
     </main>
   );
