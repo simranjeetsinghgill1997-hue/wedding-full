@@ -40,6 +40,26 @@ export const BlessingSection: React.FC<BlessingSectionProps> = ({
   // 3: Mehendi & Jaggo (Compiled into one page)
   // 4: Wedding Ceremony Programme
   const totalSubsections = 5;
+  const [visitedSubsections, setVisitedSubsections] = useState<Set<number>>(() => new Set([0]));
+  const [showProgressHint, setShowProgressHint] = useState<string | null>(null);
+  const hintTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const showHint = useCallback((message: string) => {
+    if (hintTimeoutRef.current) clearTimeout(hintTimeoutRef.current);
+    setShowProgressHint(message);
+    hintTimeoutRef.current = setTimeout(() => {
+      setShowProgressHint(null);
+    }, 2200);
+  }, []);
+
+  const markVisited = useCallback((index: number) => {
+    setVisitedSubsections((prev) => {
+      if (prev.has(index)) return prev;
+      const next = new Set(prev);
+      next.add(index);
+      return next;
+    });
+  }, []);
 
   // Jump to specific subsection rigidly
   const scrollToSubsection = useCallback((index: number) => {
@@ -54,11 +74,14 @@ export const BlessingSection: React.FC<BlessingSectionProps> = ({
       behavior: 'smooth',
     });
     setActiveSubsection(clampedIndex);
+    markVisited(clampedIndex);
 
     setTimeout(() => {
       isNavigatingRef.current = false;
     }, 450);
-  }, [totalSubsections]);
+  }, [totalSubsections, markVisited]);
+
+  const hasVisitedAll = visitedSubsections.size >= totalSubsections;
 
   // Handle rigid step-by-step wheel scroll inside invitation inner container
   useEffect(() => {
@@ -82,7 +105,19 @@ export const BlessingSection: React.FC<BlessingSectionProps> = ({
           wheelLock = true;
           scrollToSubsection(currentIdx + 1);
         } else {
-          // At last subsection: let event bubble to main container to scroll to Countdown
+          // At last subsection
+          if (!hasVisitedAll) {
+            e.preventDefault();
+            e.stopPropagation();
+            showHint(`Please explore all invitation details (${visitedSubsections.size}/${totalSubsections} viewed) before continuing`);
+          } else {
+            // All visited: let event bubble to main container or trigger onScrollNext
+            if (onScrollNext && !wheelLock) {
+              e.preventDefault();
+              wheelLock = true;
+              onScrollNext();
+            }
+          }
         }
       } else if (e.deltaY < 0) {
         // Scrolling UP
@@ -93,7 +128,19 @@ export const BlessingSection: React.FC<BlessingSectionProps> = ({
           wheelLock = true;
           scrollToSubsection(currentIdx - 1);
         } else {
-          // At subsection 1 (index 0): let event bubble to main container to scroll to Hero
+          // At first subsection (index 0)
+          if (!hasVisitedAll) {
+            e.preventDefault();
+            e.stopPropagation();
+            showHint(`Please scroll through all 5 invitation pages (${visitedSubsections.size}/${totalSubsections} viewed) to proceed`);
+          } else {
+            // All visited: allow navigating back to Hero
+            if (onScrollPrev && !wheelLock) {
+              e.preventDefault();
+              wheelLock = true;
+              onScrollPrev();
+            }
+          }
         }
       }
 
@@ -107,7 +154,9 @@ export const BlessingSection: React.FC<BlessingSectionProps> = ({
     const handleScroll = () => {
       if (!isNavigatingRef.current && el.clientHeight > 0) {
         const idx = Math.round(el.scrollTop / el.clientHeight);
-        setActiveSubsection(Math.max(0, Math.min(idx, totalSubsections - 1)));
+        const clamped = Math.max(0, Math.min(idx, totalSubsections - 1));
+        setActiveSubsection(clamped);
+        markVisited(clamped);
       }
     };
 
@@ -128,15 +177,19 @@ export const BlessingSection: React.FC<BlessingSectionProps> = ({
           // Swipe up -> next subsection
           if (currentIdx < totalSubsections - 1) {
             scrollToSubsection(currentIdx + 1);
-          } else if (onScrollNext) {
+          } else if (hasVisitedAll && onScrollNext) {
             onScrollNext();
+          } else if (!hasVisitedAll) {
+            showHint(`Please scroll through all invitation details (${visitedSubsections.size}/${totalSubsections} viewed)`);
           }
         } else {
           // Swipe down -> prev subsection
           if (currentIdx > 0) {
             scrollToSubsection(currentIdx - 1);
-          } else if (onScrollPrev) {
+          } else if (hasVisitedAll && onScrollPrev) {
             onScrollPrev();
+          } else if (!hasVisitedAll) {
+            showHint(`Please scroll through all 5 pages (${visitedSubsections.size}/${totalSubsections} viewed) before leaving`);
           }
         }
       }
@@ -154,7 +207,7 @@ export const BlessingSection: React.FC<BlessingSectionProps> = ({
       el.removeEventListener('touchend', handleTouchEnd);
       if (wheelTimeout) clearTimeout(wheelTimeout);
     };
-  }, [scrollToSubsection, totalSubsections, onScrollNext, onScrollPrev]);
+  }, [scrollToSubsection, totalSubsections, onScrollNext, onScrollPrev, hasVisitedAll, visitedSubsections.size, markVisited, showHint]);
 
   return (
     <section
@@ -197,6 +250,7 @@ export const BlessingSection: React.FC<BlessingSectionProps> = ({
           <div
             id="invitation-inner-scroll"
             ref={scrollRef}
+            data-visited-all={hasVisitedAll ? 'true' : 'false'}
             style={{
               paddingBottom: '0px',
               paddingLeft: '12px',
@@ -208,43 +262,43 @@ export const BlessingSection: React.FC<BlessingSectionProps> = ({
             className="w-full flex-1 overflow-y-auto overscroll-contain text-center text-[#1E293B] select-text no-scrollbar"
           >
             {/* ========================================================= */}
-            {/* SUBSECTION 1: GURBANI QUOTE AS ATTACHED IMAGE #1          */}
+            {/* SUBSECTION 1: GURBANI QUOTE (Font size increased by 10%)  */}
             {/* ========================================================= */}
             <div className="w-full h-full min-h-full max-h-full shrink-0 snap-start flex flex-col justify-center items-center px-2 py-3 text-center select-text">
-              {/* Top Ik Onkar calligraphic emblem */}
-              <div className="mb-2.5">
+              {/* Top Ik Onkar calligraphic emblem (+10%) */}
+              <div className="mb-2">
                 <span
-                  style={{ fontFamily: "'Noto Serif Gurmukhi', serif" }}
-                  className="text-5xl sm:text-6xl font-bold text-[#B38728] drop-shadow-[0_1px_3px_rgba(0,0,0,0.2)] select-none"
+                  style={{ fontFamily: "'Noto Serif Gurmukhi', serif", fontSize: '3.6rem' }}
+                  className="font-bold text-[#B38728] drop-shadow-[0_1px_3px_rgba(0,0,0,0.2)] select-none leading-none inline-block"
                 >
                   ੴ
                 </span>
               </div>
 
-              {/* Exact Horizontal Lockup: Khanda | ੴ ਸਤਿਗੁਰੂ ਪ੍ਰਸਾਦਿ ॥ | Khanda */}
+              {/* Exact Horizontal Lockup (+10% font size) */}
               <div className="flex items-center justify-center gap-3 my-2 text-[#855B14]">
-                <KhandaEmblemSvg size={24} className="text-[#C9A24B]" />
+                <KhandaEmblemSvg size={26} className="text-[#C9A24B]" />
                 <span
-                  style={{ fontFamily: "'Noto Serif Gurmukhi', serif" }}
-                  className="font-bold text-lg sm:text-xl text-[#7A5010] tracking-wider"
+                  style={{ fontFamily: "'Noto Serif Gurmukhi', serif", fontSize: '21px' }}
+                  className="font-bold text-[#7A5010] tracking-wider leading-snug"
                 >
                   ੴ ਸਤਿਗੁਰੂ ਪ੍ਰਸਾਦਿ ॥
                 </span>
-                <KhandaEmblemSvg size={24} className="text-[#C9A24B]" />
+                <KhandaEmblemSvg size={26} className="text-[#C9A24B]" />
               </div>
 
               {/* Ornate Gold Divider */}
-              <OrnateCardDivider className="my-3" />
+              <OrnateCardDivider className="my-2.5" />
 
-              {/* Exact Unaltered Gurbani Quote from Image #1 */}
+              {/* Exact Unaltered Gurbani Quote (+10% font size from 13px -> 14.3px) */}
               <div
                 style={{
                   fontFamily: "'Noto Serif Gurmukhi', serif",
-                  fontSize: '13px',
+                  fontSize: '14.3px',
                   fontWeight: 'bold',
-                  lineHeight: '20.75px',
+                  lineHeight: '22.8px',
                 }}
-                className="w-full max-w-[360px] text-[#1E293B] space-y-2.5 my-2"
+                className="w-full max-w-[370px] text-[#1E293B] space-y-2.5 my-2"
               >
                 <p className="whitespace-nowrap tracking-tight">ਸਤਿਗੁਰ ਦਾਤੇ ਕਾਜ ਰਚਾਇਆ ਆਪਣੀ ਮੇਹਰ ਕਰਾਈ ॥</p>
                 <p className="whitespace-nowrap tracking-tight">ਦਾਸਾਂ ਕਾਰਜ ਆਪ ਸਵਾਰੇ ਇਹ ਉਸਦੀ ਵਡਿਆਈ ॥</p>
@@ -253,7 +307,7 @@ export const BlessingSection: React.FC<BlessingSectionProps> = ({
               {/* Next step prompt */}
               <button
                 onClick={() => scrollToSubsection(1)}
-                className="mt-6 inline-flex items-center gap-1.5 text-xs font-serif font-semibold tracking-widest text-[#855B14] hover:text-[#0B1A3A] transition-colors py-1 px-3"
+                className="mt-5 inline-flex items-center gap-1.5 text-[13px] font-serif font-semibold tracking-widest text-[#855B14] hover:text-[#0B1A3A] transition-colors py-1 px-3"
               >
                 <span>Marriage Ceremony</span>
                 <ChevronDown className="w-4 h-4 animate-bounce" />
@@ -261,7 +315,7 @@ export const BlessingSection: React.FC<BlessingSectionProps> = ({
             </div>
 
             {/* ========================================================= */}
-            {/* SUBSECTION 2: MARRIAGE CEREMONY & R.S.V.P. (COMBINED)     */}
+            {/* SUBSECTION 2: MARRIAGE CEREMONY & R.S.V.P. (UNTOUCHED)    */}
             {/* ========================================================= */}
             <div
               style={{ paddingTop: '22px' }}
@@ -362,13 +416,13 @@ export const BlessingSection: React.FC<BlessingSectionProps> = ({
             </div>
 
             {/* ========================================================= */}
-            {/* SUBSECTION 3: SAGAN AND RING CEREMONY                     */}
+            {/* SUBSECTION 3: SAGAN AND RING CEREMONY (+10% Font Size)    */}
             {/* ========================================================= */}
             <div className="w-full h-full min-h-full max-h-full shrink-0 snap-start flex flex-col justify-center items-center px-4 py-4 text-center select-text">
-              {/* Event Title */}
+              {/* Event Title (+10%) */}
               <h2
                 style={{ fontFamily: "'Great Vibes', cursive" }}
-                className="text-3xl sm:text-4xl text-[#7A1F2B] tracking-wide my-1 leading-tight drop-shadow-sm font-medium"
+                className="text-[33px] sm:text-[44px] text-[#7A1F2B] tracking-wide my-1 leading-tight drop-shadow-sm font-medium"
               >
                 Sagan and Ring Ceremony
               </h2>
@@ -376,31 +430,31 @@ export const BlessingSection: React.FC<BlessingSectionProps> = ({
               {/* Subtle Gold Line Accent */}
               <div className="w-20 h-[1px] bg-gradient-to-r from-transparent via-[#C9A24B]/70 to-transparent my-2" />
 
-              {/* Date */}
-              <p className="font-serif font-bold text-xs sm:text-sm text-[#0B1A3A] tracking-wide">
+              {/* Date (+10%) */}
+              <p className="font-serif font-bold text-[13.5px] sm:text-[15.5px] text-[#0B1A3A] tracking-wide">
                 on Thursday, 29ᵗʰ October, 2026
               </p>
 
-              {/* Time */}
-              <span className="inline-block mt-2.5 text-xs sm:text-[13px] font-bold px-4 py-1 rounded-full bg-[#FAF5EB] text-[#7A1F2B] border border-[#C9A24B]/60 shadow-xs">
+              {/* Time (+10%) */}
+              <span className="inline-block mt-2.5 text-[13.5px] sm:text-[14.5px] font-bold px-4 py-1 rounded-full bg-[#FAF5EB] text-[#7A1F2B] border border-[#C9A24B]/60 shadow-xs">
                 11:00 am
               </span>
 
-              {/* Venue details */}
-              <div className="mt-5 max-w-[280px] mx-auto text-center space-y-1.5">
-                <p className="font-serif font-bold text-xs sm:text-sm text-[#1E293B]">
+              {/* Venue details (+10%) */}
+              <div className="mt-5 max-w-[300px] mx-auto text-center space-y-1.5">
+                <p className="font-serif font-bold text-[13.5px] sm:text-[15.5px] text-[#1E293B]">
                   venue: Majestic Crown - Luxury Banquet
                 </p>
-                <p className="font-serif text-[11px] sm:text-xs text-[#526071] leading-relaxed">
+                <p className="font-serif text-[12px] sm:text-[13.5px] text-[#526071] leading-relaxed">
                   24, Shivaji Marg, Najafgarh Rd, Delhi - 110015
                 </p>
 
-                {/* Google Maps link */}
+                {/* Google Maps link (+10%) */}
                 <a
                   href="https://www.google.com/maps/search/?api=1&query=Majestic+Crown+Luxury+Banquet+24+Shivaji+Marg+Najafgarh+Rd+Delhi+110015"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 text-xs font-serif font-semibold text-[#875512] hover:text-[#0B1A3A] mt-2.5 underline underline-offset-4 transition-colors"
+                  className="inline-flex items-center gap-1.5 text-[13px] font-serif font-semibold text-[#875512] hover:text-[#0B1A3A] mt-2.5 underline underline-offset-4 transition-colors"
                 >
                   <MapPin className="w-3.5 h-3.5 text-[#875512]" />
                   <span>View on Google Maps</span>
@@ -409,27 +463,27 @@ export const BlessingSection: React.FC<BlessingSectionProps> = ({
             </div>
 
             {/* ========================================================= */}
-            {/* SUBSECTION 4: MEHENDI & JAGGO (COMPILED IN ONE PAGE)      */}
+            {/* SUBSECTION 4: MEHENDI & JAGGO (+10% Font Size)            */}
             {/* ========================================================= */}
             <div className="w-full h-full min-h-full max-h-full shrink-0 snap-start flex flex-col justify-center items-center px-3 py-3 text-center select-text">
-              {/* Part A: Mehendi Ceremony */}
-              <div className="w-full max-w-[320px] flex flex-col items-center">
+              {/* Part A: Mehendi Ceremony (+10%) */}
+              <div className="w-full max-w-[340px] flex flex-col items-center">
                 <h2
                   style={{ fontFamily: "'Great Vibes', cursive" }}
-                  className="text-2xl sm:text-3xl text-[#7A1F2B] tracking-wide leading-tight drop-shadow-sm font-medium"
+                  className="text-[26px] sm:text-[33px] text-[#7A1F2B] tracking-wide leading-tight drop-shadow-sm font-medium"
                 >
                   Mehendi Ceremony
                 </h2>
 
-                <p className="font-serif font-bold text-xs text-[#0B1A3A] mt-1 tracking-wide">
+                <p className="font-serif font-bold text-[13px] sm:text-[14px] text-[#0B1A3A] mt-1 tracking-wide">
                   on Thursday, 29ᵗʰ October, 2026
                 </p>
 
                 <div className="mt-1 flex items-center justify-center gap-2">
-                  <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-[#FAF5EB] text-[#7A1F2B] border border-[#C9A24B]/60 shadow-xs">
+                  <span className="text-[13px] font-bold px-3 py-0.5 rounded-full bg-[#FAF5EB] text-[#7A1F2B] border border-[#C9A24B]/60 shadow-xs">
                     7:00 pm
                   </span>
-                  <span className="font-serif text-xs text-[#1E293B]">
+                  <span className="font-serif text-[13px] text-[#1E293B]">
                     venue: <span className="font-bold">Gill Residence</span>
                   </span>
                 </div>
@@ -438,15 +492,15 @@ export const BlessingSection: React.FC<BlessingSectionProps> = ({
                   href="https://maps.app.goo.gl/aGf1FZjs1Bc1Z2kaA"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 text-[11px] font-serif font-semibold text-[#875512] hover:text-[#0B1A3A] mt-1 underline underline-offset-4 transition-colors"
+                  className="inline-flex items-center gap-1.5 text-[12px] font-serif font-semibold text-[#875512] hover:text-[#0B1A3A] mt-1 underline underline-offset-4 transition-colors"
                 >
                   <MapPin className="w-3.5 h-3.5 text-[#875512]" />
                   <span>View on Google Maps</span>
                 </a>
               </div>
 
-              {/* Ornate Gold Floral Divider Between Mehendi and Jaggo (Increased spacing by 200%) */}
-              <div className="my-6 w-full flex items-center justify-center">
+              {/* Ornate Gold Floral Divider Between Mehendi and Jaggo */}
+              <div className="my-5 w-full flex items-center justify-center">
                 <div className="h-[1px] w-12 bg-gradient-to-r from-transparent via-[#C9A24B] to-transparent" />
                 <div className="mx-2 text-[#936B1B] text-[8px] flex items-center gap-1">
                   <span>✦</span>
@@ -456,27 +510,27 @@ export const BlessingSection: React.FC<BlessingSectionProps> = ({
                 <div className="h-[1px] w-12 bg-gradient-to-l from-transparent via-[#C9A24B] to-transparent" />
               </div>
 
-              {/* Part B: Jaggo and Cocktail */}
-              <div className="w-full max-w-[320px] flex flex-col items-center">
+              {/* Part B: Jaggo and Cocktail (+10%) */}
+              <div className="w-full max-w-[340px] flex flex-col items-center">
                 <h2
                   style={{ fontFamily: "'Great Vibes', cursive" }}
-                  className="text-2xl sm:text-3xl text-[#7A1F2B] tracking-wide leading-tight drop-shadow-sm font-medium"
+                  className="text-[26px] sm:text-[33px] text-[#7A1F2B] tracking-wide leading-tight drop-shadow-sm font-medium"
                 >
                   Jaggo and Cocktail
                 </h2>
-                <p className="font-serif italic text-[11px] font-medium text-[#B38728] tracking-wider -mt-0.5">
+                <p className="font-serif italic text-[12px] font-medium text-[#B38728] tracking-wider -mt-0.5">
                   Mehendi Ceremony
                 </p>
 
-                <p className="font-serif font-bold text-xs text-[#0B1A3A] mt-1 tracking-wide">
+                <p className="font-serif font-bold text-[13px] sm:text-[14px] text-[#0B1A3A] mt-1 tracking-wide">
                   on Friday, 30ᵗʰ October, 2026
                 </p>
 
                 <div className="mt-1 flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2">
-                  <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-[#FAF5EB] text-[#7A1F2B] border border-[#C9A24B]/60 shadow-xs">
+                  <span className="text-[13px] font-bold px-3 py-0.5 rounded-full bg-[#FAF5EB] text-[#7A1F2B] border border-[#C9A24B]/60 shadow-xs">
                     7:00 pm
                   </span>
-                  <span className="font-serif text-xs text-[#1E293B]">
+                  <span className="font-serif text-[13px] text-[#1E293B]">
                     venue: <span className="font-bold">KK residency, Yamunanagar</span>
                   </span>
                 </div>
@@ -485,7 +539,7 @@ export const BlessingSection: React.FC<BlessingSectionProps> = ({
                   href="https://maps.app.goo.gl/SRHrG74Y61UiKgqw7"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 text-[11px] font-serif font-semibold text-[#875512] hover:text-[#0B1A3A] mt-1 underline underline-offset-4 transition-colors"
+                  className="inline-flex items-center gap-1.5 text-[12px] font-serif font-semibold text-[#875512] hover:text-[#0B1A3A] mt-1 underline underline-offset-4 transition-colors"
                 >
                   <MapPin className="w-3.5 h-3.5 text-[#875512]" />
                   <span>View on Google Maps</span>
@@ -494,13 +548,13 @@ export const BlessingSection: React.FC<BlessingSectionProps> = ({
             </div>
 
             {/* ========================================================= */}
-            {/* SUBSECTION 5: WEDDING CEREMONY PROGRAMME                  */}
+            {/* SUBSECTION 5: WEDDING CEREMONY PROGRAMME (+10% Font Size) */}
             {/* ========================================================= */}
             <div className="w-full h-full min-h-full max-h-full shrink-0 snap-start flex flex-col justify-center items-center px-4 py-3 text-center select-text">
-              {/* Ceremony Title */}
+              {/* Ceremony Title (+10%) */}
               <h2
                 style={{ fontFamily: "'Great Vibes', cursive" }}
-                className="text-3xl sm:text-4xl text-[#7A1F2B] tracking-wide leading-tight my-1 drop-shadow-sm font-medium"
+                className="text-[33px] sm:text-[44px] text-[#7A1F2B] tracking-wide leading-tight my-1 drop-shadow-sm font-medium"
               >
                 Wedding Ceremony
               </h2>
@@ -508,26 +562,26 @@ export const BlessingSection: React.FC<BlessingSectionProps> = ({
               {/* Subtle Gold Line Accent */}
               <div className="w-20 h-[1px] bg-gradient-to-r from-transparent via-[#C9A24B]/70 to-transparent my-1.5" />
 
-              {/* Date */}
-              <p className="font-serif font-bold text-xs sm:text-sm text-[#0B1A3A] mb-3 tracking-wide">
+              {/* Date (+10%) */}
+              <p className="font-serif font-bold text-[13px] sm:text-[15.5px] text-[#0B1A3A] mb-3 tracking-wide">
                 On Saturday, 31ˢᵗ October, 2026
               </p>
 
-              {/* Timeline Items - Spaced & Airy */}
-              <div className="w-full max-w-[280px] space-y-3 text-center text-[#1E293B]">
+              {/* Timeline Items - Spaced & Airy (+10%) */}
+              <div className="w-full max-w-[300px] space-y-3 text-center text-[#1E293B]">
                 {/* 1. Sehra Bandi & Barat */}
                 <div className="leading-snug space-y-0.5">
-                  <p className="font-serif font-bold text-xs sm:text-[13px] text-[#0F1E36]">
+                  <p className="font-serif font-bold text-[13px] sm:text-[14.5px] text-[#0F1E36]">
                     Sehra bandi: 8:00am &bull; Departure of Barat: 9:30am
                   </p>
-                  <p className="font-serif text-[10px] sm:text-[11px] text-[#556477]">
+                  <p className="font-serif text-[11px] sm:text-[12px] text-[#556477]">
                     at KK residence, Yamunanagar
                   </p>
                   <a
                     href="https://maps.app.goo.gl/SRHrG74Y61UiKgqw7"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-[10.5px] font-serif font-semibold text-[#875512] hover:text-[#0B1A3A] underline underline-offset-4 transition-colors"
+                    className="inline-flex items-center gap-1 text-[11.5px] font-serif font-semibold text-[#875512] hover:text-[#0B1A3A] underline underline-offset-4 transition-colors"
                   >
                     <MapPin className="w-3 h-3 text-[#875512]" /> Map Location
                   </a>
@@ -535,17 +589,17 @@ export const BlessingSection: React.FC<BlessingSectionProps> = ({
 
                 {/* 2. Anand Karaj */}
                 <div className="leading-snug pt-1 space-y-0.5">
-                  <p className="font-serif font-bold text-xs sm:text-[13px] text-[#7A1F2B]">
+                  <p className="font-serif font-bold text-[13px] sm:text-[14.5px] text-[#7A1F2B]">
                     Anand karaj: 10:30am
                   </p>
-                  <p className="font-serif text-[10px] sm:text-[11px] text-[#556477]">
+                  <p className="font-serif text-[11px] sm:text-[12px] text-[#556477]">
                     at Gurudwara Buria Sahib, Jagadhri, yamunanagar
                   </p>
                   <a
                     href="https://maps.app.goo.gl/geGbUJPRXewe28Zv9"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-[10.5px] font-serif font-semibold text-[#875512] hover:text-[#0B1A3A] underline underline-offset-4 transition-colors"
+                    className="inline-flex items-center gap-1 text-[11.5px] font-serif font-semibold text-[#875512] hover:text-[#0B1A3A] underline underline-offset-4 transition-colors"
                   >
                     <MapPin className="w-3 h-3 text-[#875512]" /> Map Location
                   </a>
@@ -553,14 +607,14 @@ export const BlessingSection: React.FC<BlessingSectionProps> = ({
 
                 {/* 3. Lunch */}
                 <div className="leading-snug pt-1 space-y-0.5">
-                  <p className="font-serif font-bold text-xs sm:text-[13px] text-[#0F1E36]">
+                  <p className="font-serif font-bold text-[13px] sm:text-[14.5px] text-[#0F1E36]">
                     Lunch: 1:00pm &bull; Venue: Ambience Resort
                   </p>
                   <a
                     href="https://maps.app.goo.gl/3YTLBFNrsap4dx1M7"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-[10.5px] font-serif font-semibold text-[#875512] hover:text-[#0B1A3A] underline underline-offset-4 transition-colors"
+                    className="inline-flex items-center gap-1 text-[11.5px] font-serif font-semibold text-[#875512] hover:text-[#0B1A3A] underline underline-offset-4 transition-colors"
                   >
                     <MapPin className="w-3 h-3 text-[#875512]" /> Map Location
                   </a>
@@ -569,6 +623,36 @@ export const BlessingSection: React.FC<BlessingSectionProps> = ({
             </div>
           </div>
         </div>
+
+        {/* Floating Page Navigation Dots & Status */}
+        <div className="absolute right-3 top-1/2 -translate-y-1/2 z-30 flex flex-col items-center gap-2 pointer-events-auto">
+          {Array.from({ length: totalSubsections }).map((_, i) => {
+            const isVisited = visitedSubsections.has(i);
+            const isActive = activeSubsection === i;
+            return (
+              <button
+                key={i}
+                onClick={() => scrollToSubsection(i)}
+                title={`Page ${i + 1} of ${totalSubsections}${isVisited ? ' (viewed)' : ''}`}
+                className={`w-2 h-2 rounded-full transition-all duration-300 ${
+                  isActive
+                    ? 'w-2.5 h-2.5 bg-[#D4AF37] ring-2 ring-[#7A1F2B]'
+                    : isVisited
+                    ? 'bg-[#C9A24B]/70 hover:bg-[#D4AF37]'
+                    : 'bg-[#C9A24B]/25 hover:bg-[#C9A24B]/50'
+                }`}
+                aria-label={`Go to invitation page ${i + 1}`}
+              />
+            );
+          })}
+        </div>
+
+        {/* Gentle Toast / Hint when user attempts to scroll out prematurely */}
+        {showProgressHint && (
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-40 bg-[#0B1A3A]/95 text-[#FDF6E2] text-xs font-serif px-4 py-2 rounded-full border border-[#D4AF37]/50 shadow-lg backdrop-blur-sm pointer-events-none transition-opacity duration-200">
+            {showProgressHint}
+          </div>
+        )}
       </div>
     </section>
   );

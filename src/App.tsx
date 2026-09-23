@@ -42,11 +42,26 @@ export default function App() {
     const handleWheel = (e: WheelEvent) => {
       if (Math.abs(e.deltaY) < 18) return;
 
+      const height = container.clientHeight || window.innerHeight;
+      const currentIdx = Math.round(container.scrollTop / height);
+
       const target = e.target as HTMLElement | null;
-      const innerScroll = target?.closest('#invitation-inner-scroll') as HTMLElement | null;
-      if (innerScroll) {
+      const innerScroll = (target?.closest('#invitation-inner-scroll') ||
+        document.getElementById('invitation-inner-scroll')) as HTMLElement | null;
+
+      // If user is currently in Section 1 (the invitation details section)
+      if (currentIdx === 1 && innerScroll) {
         const atBottom = innerScroll.scrollTop + innerScroll.clientHeight >= innerScroll.scrollHeight - 8;
         const atTop = innerScroll.scrollTop <= 8;
+        const allVisited = innerScroll.getAttribute('data-visited-all') === 'true';
+
+        // Do not allow leaving Section 1 if not all subsections have been viewed
+        if (!allVisited) {
+          e.preventDefault();
+          return;
+        }
+
+        // If at top and trying to scroll up, or at bottom and trying to scroll down, only allow if allVisited
         if ((e.deltaY > 0 && !atBottom) || (e.deltaY < 0 && !atTop)) {
           return;
         }
@@ -55,9 +70,6 @@ export default function App() {
       e.preventDefault();
 
       if (isLocked) return;
-
-      const height = container.clientHeight || window.innerHeight;
-      const currentIdx = Math.round(container.scrollTop / height);
 
       if (e.deltaY > 0 && currentIdx < totalSections - 1) {
         isLocked = true;
@@ -77,12 +89,23 @@ export default function App() {
       const height = container.clientHeight || window.innerHeight;
       const currentIdx = Math.round(container.scrollTop / height);
 
+      const innerScroll = document.getElementById('invitation-inner-scroll');
+      const allVisited = innerScroll?.getAttribute('data-visited-all') === 'true';
+
       if (['ArrowDown', 'PageDown', ' '].includes(e.key)) {
+        if (currentIdx === 1 && !allVisited) {
+          e.preventDefault();
+          return;
+        }
         if (currentIdx < totalSections - 1) {
           e.preventDefault();
           scrollToSection(currentIdx + 1);
         }
       } else if (['ArrowUp', 'PageUp'].includes(e.key)) {
+        if (currentIdx === 1 && !allVisited) {
+          e.preventDefault();
+          return;
+        }
         if (currentIdx > 0) {
           e.preventDefault();
           scrollToSection(currentIdx - 1);

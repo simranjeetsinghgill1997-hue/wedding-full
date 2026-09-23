@@ -33,8 +33,6 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onScrollNext }) => {
           playsInline
           className="w-full h-full object-cover object-center"
         />
-        {/* Subtle royal darkening overlay for optimal typography legibility */}
-        <div className="absolute inset-0 bg-gradient-to-b from-[#0B1A3A]/45 via-transparent to-[#0B1A3A]/60 pointer-events-none" />
       </div>
 
       {/* Top Section — Names Lockup */}
