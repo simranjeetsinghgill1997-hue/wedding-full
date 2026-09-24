@@ -394,7 +394,7 @@ export const BlessingSection: React.FC<BlessingSectionProps> = ({
                     7:00 pm
                   </span>
                   <span className="font-serif text-[13px] text-[#1E293B]">
-                    venue: <span className="font-bold">KK residency, Yamunanagar</span>
+                    venue: <span className="font-bold">KK Residency, Yamunanagar</span>
                   </span>
                 </div>
 
@@ -438,7 +438,7 @@ export const BlessingSection: React.FC<BlessingSectionProps> = ({
                     Sehra bandi: 8:00am &bull; Departure of Barat: 9:30am
                   </p>
                   <p className="font-serif text-[11px] sm:text-[12px] text-[#556477]">
-                    at KK residence, Yamunanagar
+                    at KK Residency, Yamunanagar
                   </p>
                   <a
                     href="https://maps.app.goo.gl/SRHrG74Y61UiKgqw7"
