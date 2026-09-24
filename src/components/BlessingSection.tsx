@@ -384,9 +384,6 @@ export const BlessingSection: React.FC<BlessingSectionProps> = ({
                 >
                   Jaggo and Cocktail
                 </h2>
-                <p className="font-serif italic text-[12px] font-medium text-[#B38728] tracking-wider -mt-0.5">
-                  Mehendi Ceremony
-                </p>
 
                 <p className="font-serif font-bold text-[13px] sm:text-[14px] text-[#0B1A3A] mt-1 tracking-wide">
                   on Friday, 30ᵗʰ October, 2026
